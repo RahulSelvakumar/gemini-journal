@@ -1,4 +1,5 @@
 # Personal Gemini Journal
+<img width="1680" height="987" alt="Screenshot 2026-08-30 at 1 03 23 AM" src="https://github.com/user-attachments/assets/381f0d56-5ff9-47ec-b625-2cb5760041d4" />
 
 A calm, authenticated journaling app: sign in, brainstorm or write with Gemini, and every
 conversation is auto-summarized and saved to your own private history. Built as a
