@@ -1,7 +1,7 @@
 import { db, requireUserId, UnauthorizedError } from "@/lib/firebase-admin";
 import { checkRateLimit, RateLimitExceededError } from "@/lib/rate-limit";
 import { summarizeConversation, type ChatTurn } from "@/lib/gemini";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { z } from "zod";
 
 const saveEntrySchema = z.object({
@@ -17,7 +17,9 @@ const saveEntrySchema = z.object({
 });
 
 /**
- * GET /api/entries — list the authenticated user's own saved journal entries.
+ * GET /api/entries — list the authenticated user's own saved journal entries,
+ * including the full saved conversation (`turns`) so a past entry can be
+ * reopened and read exactly as it was written, e.g. from the calendar view.
  * The Firestore path is scoped to `users/{uid}/entries`, derived from the
  * server-verified uid — a client can never read another user's entries by
  * supplying a different id, because no id is ever accepted from the request.
@@ -38,16 +40,21 @@ export async function GET(request: Request) {
     .doc(uid)
     .collection("entries")
     .orderBy("createdAt", "desc")
-    .limit(50)
+    .limit(200)
     .get();
 
-  const entries = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const entries = snap.docs.map((d) => {
+    const data = d.data();
+    const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : null;
+    return { id: d.id, ...data, createdAt };
+  });
   return Response.json({ entries });
 }
 
 /**
  * POST /api/entries — summarize a finished conversation with Gemini and
- * persist the summary under the caller's own user document.
+ * persist the title, summary, and full turn history under the caller's own
+ * user document.
  */
 export async function POST(request: Request) {
   let uid: string;
@@ -75,17 +82,19 @@ export async function POST(request: Request) {
   }
 
   try {
-    const summary = await summarizeConversation(parsed.data.turns as ChatTurn[]);
+    const { title, summary } = await summarizeConversation(parsed.data.turns as ChatTurn[]);
     const ref = await db
       .collection("users")
       .doc(uid)
       .collection("entries")
       .add({
+        title,
         summary,
+        turns: parsed.data.turns,
         turnCount: parsed.data.turns.length,
         createdAt: FieldValue.serverTimestamp(),
       });
-    return Response.json({ id: ref.id, summary }, { status: 201 });
+    return Response.json({ id: ref.id, title, summary }, { status: 201 });
   } catch (err) {
     console.error("gemini summarize error", { uid, error: (err as Error).message });
     return Response.json({ error: "Failed to summarize conversation" }, { status: 502 });

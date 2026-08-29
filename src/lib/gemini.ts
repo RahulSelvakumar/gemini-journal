@@ -49,19 +49,35 @@ async function getClient(): Promise<GoogleGenAI> {
 
 export type ChatTurn = { role: "user" | "model"; text: string };
 
+// This is a journaling companion, not a document generator — the UI renders
+// replies in a calm, conversational chat bubble, so heavy markdown (headers,
+// horizontal rules, big nested lists) reads as noisy wall-of-text rather than
+// a warm reply. Keep it short, plain-spoken, and lightly formatted.
+const JOURNAL_SYSTEM_INSTRUCTION =
+  "You are a warm, calm, and thoughtful journaling and brainstorming companion inside a " +
+  "personal journal app. Reply the way a supportive, emotionally intelligent friend would " +
+  "text back — conversational, gentle, and concise (usually 2-5 short sentences, more only " +
+  "if the user clearly wants a deeper brainstorm). Avoid markdown headers (#), horizontal " +
+  "rules (---), and long nested bullet lists — this is a chat bubble, not a report. Light " +
+  "emphasis (*italic*/**bold**) and short lists are fine when they genuinely help. Ask a " +
+  "gentle follow-up question when it feels natural, but don't force one every time.";
+
 /** Sends the full turn history plus a new user message and returns Gemini's reply. */
 export async function sendChatMessage(history: ChatTurn[], message: string): Promise<string> {
   const ai = await getClient();
   const chat = ai.chats.create({
     model: MODEL,
+    config: { systemInstruction: JOURNAL_SYSTEM_INSTRUCTION },
     history: history.map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
   });
   const response = await chat.sendMessage({ message });
   return response.text ?? "";
 }
 
-/** Condenses a full conversation into a short journal-style summary before saving. */
-export async function summarizeConversation(turns: ChatTurn[]): Promise<string> {
+export type ConversationSummary = { title: string; summary: string };
+
+/** Condenses a full conversation into a short title + journal-style summary before saving. */
+export async function summarizeConversation(turns: ChatTurn[]): Promise<ConversationSummary> {
   const ai = await getClient();
   const transcript = turns.map((t) => `${t.role === "user" ? "User" : "Gemini"}: ${t.text}`).join("\n");
   const response = await ai.models.generateContent({
@@ -72,14 +88,22 @@ export async function summarizeConversation(turns: ChatTurn[]): Promise<string> 
         parts: [
           {
             text:
-              "Summarize the following journaling/brainstorming conversation into a concise, " +
-              "first-person journal entry (3-6 sentences). Capture key thoughts, decisions, and " +
-              "feelings expressed. Do not include meta-commentary, just the entry text.\n\n" +
+              "Read the following journaling/brainstorming conversation. Respond with exactly two " +
+              "lines, no markdown, no extra commentary:\n" +
+              "Line 1: TITLE: a short, warm, specific title (3-6 words) capturing what this entry is " +
+              "really about — like a diary entry title, not a generic label.\n" +
+              "Line 2: SUMMARY: a concise, first-person journal entry (3-6 sentences) capturing key " +
+              "thoughts, decisions, and feelings expressed.\n\n" +
               transcript,
           },
         ],
       },
     ],
   });
-  return response.text ?? "";
+  const text = response.text ?? "";
+  const titleMatch = text.match(/TITLE:\s*(.+)/i);
+  const summaryMatch = text.match(/SUMMARY:\s*([\s\S]+)/i);
+  const title = titleMatch?.[1]?.trim().replace(/^["']|["']$/g, "") || "Untitled entry";
+  const summary = summaryMatch?.[1]?.trim() || text.trim();
+  return { title, summary };
 }
