@@ -1,36 +1,112 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Personal Gemini Journal
 
-## Getting Started
+An authenticated web app where users sign in, brainstorm or journal with Gemini, and have
+their conversations automatically summarized and saved — built as a **production-grade**
+submission for the Google Gen AI APAC ideathon.
 
-First, run the development server:
+**Live app:** https://gemini-journal-1040501010782.asia-south1.run.app
+**GCP project:** `gen-ai-academy-491119` (region: `asia-south1`)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## What this demonstrates
+
+| Requirement | How it's met |
+|---|---|
+| User Authentication | Firebase Authentication (Google Sign-In), verified server-side on every request |
+| Multi-turn AI Interaction | `gemini-3.5-flash-lite` via `@google/genai`, server-side only |
+| Isolated Data Storage | Cloud Firestore under `users/{uid}/entries/{id}`, enforced by both security rules and server-side uid checks — zero cross-user leakage |
+| Secure Key Management | Gemini API key lives only in Cloud Secret Manager, fetched at runtime by a least-privilege Cloud Run service account — never hardcoded, never shipped to the client |
+| **Enhancement (Phase 3)** | **Voice Journal** — browser Web Speech API speech-to-text feeds the same authenticated Gemini pipeline, at zero extra infra cost |
+
+## Architecture
+
+```
+Browser (Next.js client)
+  │  Firebase Auth ID token (Bearer header)
+  ▼
+Cloud Run (Next.js server, stateless, autoscaled 0→3, dedicated SA)
+  │  verifies ID token server-side (firebase-admin) — never trusts client-supplied uid
+  │  per-user rate limit (Firestore-backed) before every Gemini call
+  ▼
+Gemini API (gemini-3.5-flash-lite)         Cloud Firestore (users/{uid}/entries)
+  key fetched from Secret Manager                enforced by security rules + server checks
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Auth boundary**: every `/api/*` route calls `requireUserId(request)`, which verifies the
+  Firebase ID token and returns the uid. If the token is missing/invalid/expired → `401`,
+  full stop. No route ever reads a uid from a query param, body field, or cookie.
+- **Data isolation**: Firestore documents live at `users/{uid}/entries/{entryId}`, never a
+  shared flat collection. `firestore.rules` independently enforces
+  `request.auth.uid == uid` as defense-in-depth on top of the server-side check.
+- **Secrets**: the Gemini API key is stored in Secret Manager (`gemini-api-key`). The Cloud
+  Run service account `gemini-journal-run@...` has `roles/secretmanager.secretAccessor`
+  scoped to that single secret only — not project-wide, not `roles/editor`.
+- **Least privilege**: a dedicated service account was created for Cloud Run instead of
+  using the default (Editor-scoped) compute service account, with only `datastore.user`,
+  `secretmanager.secretAccessor` (single secret), `logging.logWriter`, and
+  `monitoring.metricWriter`.
+- **Rate limiting**: a Firestore-backed per-user counter caps requests per minute, so one
+  user (or a bug) can't exhaust the shared Gemini free-tier quota during a live demo.
+- **Containerized & stateless**: multi-stage Dockerfile → Next.js `standalone` build, runs
+  as a non-root user, deployed to Cloud Run with autoscaling (0–3 instances) — no in-process
+  session state, so it scales horizontally without sticky sessions.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Resilience — learning from a past billing outage
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+A prior cohort submission was missed because a GCP billing account was silently disabled
+and went unnoticed. This build treats that as a first-class production requirement:
 
-## Learn More
+- **Uptime monitoring**: a Cloud Monitoring uptime check polls `/api/health` on the Cloud
+  Run URL every 5 minutes from 3 regions, wired to an alert policy that emails on failure.
+- **Billing budget alert**: a $20 budget on the billing account (`Gemini Journal Safety
+  Budget`) emails at 50%/90%/100% thresholds, so a runaway cost or an about-to-be-disabled
+  account is caught before it takes the app down silently.
 
-To learn more about Next.js, take a look at the following resources:
+## Phase 1 deliverable — AI Studio "constitution"
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+See [`docs/ai-studio-system-instructions.md`](docs/ai-studio-system-instructions.md) for the
+full custom system instructions pasted into Google AI Studio before any code was generated.
+It codifies threat modeling, auth/authz rules, database isolation, secret management, secure
+coding standards, and operability requirements that this app was built against.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Manual setup steps still required (external console UI, not API-scriptable)
 
-## Deploy on Vercel
+1. **Enable Google Sign-In provider**: Firebase Console → Build → Authentication → Sign-in
+   method → enable **Google**. (Firebase project, Firestore DB, web app config, security
+   rules, IAM, Secret Manager, Cloud Run, uptime check, and budget alert were all already
+   provisioned programmatically for this submission.)
+2. **Add Gemini API billing/credits**: the Gemini API key is live and stored in Secret
+   Manager, but this specific project's prepaid Generative Language API credits were
+   depleted (`RESOURCE_EXHAUSTED`). Visit https://aistudio.google.com/projects for this
+   project and top up/enable billing so `gemini-3.5-flash-lite` calls succeed in the demo.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Local development
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+cp .env.local.example .env.local   # fill in GEMINI_API_KEY for local-only testing
+npm install
+npm run dev
+```
+
+## Deploying
+
+```bash
+gcloud builds submit --config=cloudbuild.yaml \
+  --substitutions=_IMAGE=asia-south1-docker.pkg.dev/gen-ai-academy-491119/gemini-journal/app:latest,\
+_FIREBASE_API_KEY=...,_FIREBASE_AUTH_DOMAIN=...,_FIREBASE_PROJECT_ID=...,\
+_FIREBASE_STORAGE_BUCKET=...,_FIREBASE_SENDER_ID=...,_FIREBASE_APP_ID=... .
+
+gcloud run deploy gemini-journal --region=asia-south1 \
+  --image=asia-south1-docker.pkg.dev/gen-ai-academy-491119/gemini-journal/app:latest \
+  --service-account=gemini-journal-run@gen-ai-academy-491119.iam.gserviceaccount.com
+```
+
+## Scaling & maintainability notes for judges
+
+- Stateless Cloud Run service → horizontal autoscaling with no code changes.
+- All persistent state lives in managed services (Firestore, Secret Manager) — the
+  container itself can be destroyed/recreated/redeployed at any time with zero data loss.
+- IAM is least-privilege per-service-account, not a shared broad-permission identity.
+- Input validation (`zod`) on every API route rejects malformed requests before they reach
+  Gemini or Firestore.
+- Structured `console.error` logs (uid + error, never full user content or secrets) flow to
+  Cloud Logging automatically on Cloud Run.
