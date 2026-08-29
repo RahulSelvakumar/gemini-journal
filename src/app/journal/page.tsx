@@ -6,9 +6,18 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import { authedFetch } from "@/lib/api-client";
 import { useVoiceInput } from "@/lib/use-voice-input";
+import { FloatingParticles } from "@/components/floating-particles";
 
 type Turn = { role: "user" | "model"; text: string };
 type Entry = { id: string; summary: string; turnCount: number };
+
+function timeOfDayGreeting(hour: number): string {
+  if (hour < 5) return "Still up? I'm here whenever you're ready to write.";
+  if (hour < 12) return "Good morning. What's on your mind?";
+  if (hour < 17) return "Good afternoon. Take a breath — this space is yours.";
+  if (hour < 21) return "Good evening. How was your day, really?";
+  return "Good night. A few quiet thoughts before you rest?";
+}
 
 export default function JournalPage() {
   const { user, loading, signOutUser } = useAuth();
@@ -20,6 +29,7 @@ export default function JournalPage() {
   const [saving, setSaving] = useState(false);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [greeting, setGreeting] = useState("Welcome back.");
 
   const voice = useVoiceInput();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -27,6 +37,14 @@ export default function JournalPage() {
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
   }, [user, loading, router]);
+
+  useEffect(() => {
+    // Greeting depends on the viewer's local clock, which only exists after
+    // mount — computing it here (rather than at module/render time) avoids a
+    // server/client hydration mismatch on the initial paint.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setGreeting(timeOfDayGreeting(new Date().getHours()));
+  }, []);
 
   useEffect(() => {
     // Syncing an external system's state (speech recognition transcript) into
@@ -104,7 +122,7 @@ export default function JournalPage() {
         return;
       }
       setTurns([]);
-      setNotice("Saved! Your conversation has been summarized to your journal.");
+      setNotice("Saved — tucked away safely in your journal, just for you. 🌙");
       loadEntries();
     } catch {
       setNotice("Network error while saving.");
@@ -115,9 +133,9 @@ export default function JournalPage() {
 
   if (loading || !user) {
     return (
-      <div className="relative flex flex-1 items-center justify-center text-zinc-500">
+      <div className="relative flex flex-1 items-center justify-center text-stone-500">
         <div className="aurora-bg" />
-        Loading…
+        <span className="font-journal italic">Settling into your space…</span>
       </div>
     );
   }
@@ -125,20 +143,21 @@ export default function JournalPage() {
   return (
     <div className="relative mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-6">
       <div className="aurora-bg" />
+      <FloatingParticles count={8} />
       <motion.header
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between border-b border-zinc-200/60 pb-3 dark:border-zinc-800/60"
+        className="flex items-center justify-between border-b border-stone-300/40 pb-4 dark:border-stone-700/40"
       >
         <div>
-          <h1 className="bg-gradient-to-r from-violet-600 via-fuchsia-500 to-amber-500 bg-clip-text text-xl font-bold text-transparent">
-            Personal Gemini Journal
+          <h1 className="font-journal text-2xl font-semibold text-stone-800 dark:text-stone-100">
+            {greeting}
           </h1>
-          <p className="text-sm text-zinc-500">Signed in as {user.email}</p>
+          <p className="text-sm text-stone-500 dark:text-stone-400">{user.email}</p>
         </div>
         <button
           onClick={() => signOutUser()}
-          className="rounded-full border border-zinc-300 px-4 py-1.5 text-sm transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+          className="rounded-full border border-stone-300/70 px-4 py-1.5 text-sm text-stone-600 transition-colors hover:bg-stone-100 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-900"
         >
           Sign out
         </button>
@@ -153,12 +172,13 @@ export default function JournalPage() {
         >
           <div
             ref={scrollRef}
-            className="flex-1 space-y-3 overflow-y-auto rounded-2xl border border-zinc-200/60 bg-white/60 p-4 shadow-lg backdrop-blur-md dark:border-zinc-800/60 dark:bg-zinc-900/50"
+            className="paper-card flex-1 space-y-3 overflow-y-auto rounded-3xl border border-stone-300/40 p-5 shadow-[0_15px_45px_-20px_rgba(120,80,40,0.25)] dark:border-stone-700/40"
             style={{ minHeight: 320, maxHeight: 480 }}
           >
             {turns.length === 0 && (
-              <p className="text-sm text-zinc-500">
-                Start brainstorming or journaling below — type or use the mic.
+              <p className="font-journal text-sm italic text-stone-500 dark:text-stone-400">
+                Start writing below, or tap the mic and just talk. There&apos;s no
+                wrong way to begin.
               </p>
             )}
             <AnimatePresence initial={false}>
@@ -167,15 +187,15 @@ export default function JournalPage() {
                   key={i}
                   initial={{ opacity: 0, y: 10, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ duration: 0.25 }}
+                  transition={{ duration: 0.35, ease: "easeOut" }}
                   className={t.role === "user" ? "text-right" : "text-left"}
                 >
                   <span
                     className={
-                      "inline-block max-w-[85%] rounded-2xl px-4 py-2 text-sm shadow-sm " +
+                      "font-journal inline-block max-w-[85%] rounded-3xl px-4 py-2.5 text-[15px] leading-relaxed shadow-sm " +
                       (t.role === "user"
-                        ? "bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white"
-                        : "bg-zinc-100 dark:bg-zinc-800")
+                        ? "bg-gradient-to-br from-amber-200/70 to-orange-100/70 text-stone-800 dark:from-amber-800/40 dark:to-orange-900/30 dark:text-stone-100"
+                        : "bg-gradient-to-br from-violet-100/70 to-sky-100/70 text-stone-800 dark:from-violet-900/30 dark:to-sky-900/20 dark:text-stone-100")
                     }
                   >
                     {t.text}
@@ -185,15 +205,18 @@ export default function JournalPage() {
             </AnimatePresence>
           </div>
 
-          {notice && (
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="mt-2 text-sm text-amber-600"
-            >
-              {notice}
-            </motion.p>
-          )}
+          <AnimatePresence>
+            {notice && (
+              <motion.p
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-2 text-sm text-amber-700 dark:text-amber-400"
+              >
+                {notice}
+              </motion.p>
+            )}
+          </AnimatePresence>
 
           <div className="mt-3 flex items-end gap-2">
             <textarea
@@ -206,39 +229,41 @@ export default function JournalPage() {
                 }
               }}
               rows={2}
-              placeholder="Type your thoughts…"
-              className="flex-1 resize-none rounded-xl border border-zinc-300 bg-white/80 p-2 text-sm backdrop-blur-md dark:border-zinc-700 dark:bg-zinc-900/80"
+              placeholder="Let it out… whatever's on your mind."
+              className="font-journal flex-1 resize-none rounded-2xl border border-stone-300/70 bg-white/70 p-3 text-[15px] backdrop-blur-md placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-300/60 dark:border-stone-700 dark:bg-stone-900/60"
             />
             {voice.isSupported && (
               <motion.button
                 whileTap={{ scale: 0.92 }}
                 onClick={voice.isListening ? voice.stop : voice.start}
-                title="Voice input"
+                title="Voice journaling"
                 className={
-                  "relative shrink-0 rounded-full px-3 py-2 text-sm " +
+                  "relative shrink-0 rounded-full px-3 py-3 text-sm " +
                   (voice.isListening
-                    ? "bg-red-600 text-white"
-                    : "border border-zinc-300 dark:border-zinc-700")
+                    ? "bg-gradient-to-br from-rose-400 to-orange-400 text-white"
+                    : "border border-stone-300/70 dark:border-stone-700")
                 }
               >
                 {voice.isListening && (
                   <motion.span
-                    className="absolute inset-0 rounded-full bg-red-500"
-                    animate={{ scale: [1, 1.5], opacity: [0.6, 0] }}
-                    transition={{ duration: 1.2, repeat: Infinity }}
+                    className="absolute inset-0 rounded-full bg-rose-400"
+                    animate={{ scale: [1, 1.6], opacity: [0.55, 0] }}
+                    transition={{ duration: 1.6, repeat: Infinity, ease: "easeOut" }}
                   />
                 )}
-                <span className="relative">{voice.isListening ? "● Listening" : "🎙️"}</span>
+                <span className={`relative ${voice.isListening ? "breathe" : ""}`}>
+                  {voice.isListening ? "● Listening" : "🎙️"}
+                </span>
               </motion.button>
             )}
             <motion.button
-              whileHover={{ scale: 1.03 }}
+              whileHover={{ scale: 1.03, y: -1 }}
               whileTap={{ scale: 0.96 }}
               onClick={sendMessage}
               disabled={sending || !input.trim()}
-              className="shrink-0 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 px-4 py-2 text-sm text-white shadow-md disabled:opacity-50"
+              className="shrink-0 rounded-full bg-gradient-to-r from-amber-400 via-orange-300 to-rose-300 px-5 py-3 text-sm font-medium text-stone-900 shadow-md disabled:opacity-50"
             >
-              {sending ? "Sending…" : "Send"}
+              {sending ? "…" : "Send"}
             </motion.button>
           </div>
           {voice.error && <p className="mt-1 text-xs text-red-500">{voice.error}</p>}
@@ -247,9 +272,9 @@ export default function JournalPage() {
             whileHover={{ scale: 1.02 }}
             onClick={saveAndSummarize}
             disabled={saving || turns.length === 0}
-            className="mt-3 self-start rounded-full border border-zinc-300 px-4 py-1.5 text-sm transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            className="mt-3 self-start rounded-full border border-stone-300/70 px-4 py-1.5 text-sm text-stone-600 transition-colors hover:bg-stone-100 disabled:opacity-50 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-900"
           >
-            {saving ? "Summarizing…" : "Save & summarize entry"}
+            {saving ? "Tucking it away…" : "Save & summarize entry"}
           </motion.button>
         </motion.div>
 
@@ -257,12 +282,16 @@ export default function JournalPage() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="rounded-2xl border border-zinc-200/60 bg-white/60 p-4 shadow-lg backdrop-blur-md dark:border-zinc-800/60 dark:bg-zinc-900/50"
+          className="paper-card rounded-3xl border border-stone-300/40 p-4 shadow-[0_15px_45px_-20px_rgba(120,80,40,0.25)] dark:border-stone-700/40"
         >
-          <h2 className="mb-2 text-sm font-semibold text-zinc-500">Your journal history</h2>
+          <h2 className="mb-2 text-sm font-semibold text-stone-500 dark:text-stone-400">
+            Your journal, so far
+          </h2>
           <div className="space-y-3 overflow-y-auto" style={{ maxHeight: 480 }}>
             {entries.length === 0 && (
-              <p className="text-xs text-zinc-500">No entries yet — save a conversation to see it here.</p>
+              <p className="text-xs text-stone-500 dark:text-stone-400">
+                Nothing saved yet — your first entry will appear here.
+              </p>
             )}
             {entries.map((e, i) => (
               <motion.div
@@ -270,8 +299,8 @@ export default function JournalPage() {
                 initial={{ opacity: 0, x: 12 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.05 }}
-                whileHover={{ scale: 1.02 }}
-                className="rounded-xl bg-gradient-to-br from-violet-50 to-amber-50 p-3 text-xs shadow-sm dark:from-zinc-800 dark:to-zinc-900"
+                whileHover={{ scale: 1.02, rotate: -0.3 }}
+                className="font-journal rounded-2xl bg-gradient-to-br from-amber-50 to-violet-50 p-3 text-[13px] leading-relaxed text-stone-700 shadow-sm dark:from-stone-800 dark:to-stone-900 dark:text-stone-200"
               >
                 {e.summary}
               </motion.div>

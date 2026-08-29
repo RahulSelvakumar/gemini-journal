@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fdf8f3;
+  --foreground: #2e2a26;
 }
 
 @theme inline {
@@ -10,55 +10,60 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif-journal: var(--font-serif-journal);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #171319;
+    --foreground: #f3ece3;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
-/* Animated aurora-style gradient background used behind auth/journal pages. */
+/*
+ * A slow, warm "golden hour" gradient wash — deliberately soft and calming
+ * (peach / lavender / sage) rather than the neon tech-demo palette, so the
+ * page feels like a quiet room to write in, not a SaaS dashboard.
+ */
 .aurora-bg {
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: -2;
   overflow: hidden;
-  background: radial-gradient(1200px 600px at 10% -10%, #7c3aed22, transparent 60%),
-    radial-gradient(1000px 500px at 110% 10%, #06b6d422, transparent 60%),
-    radial-gradient(900px 500px at 50% 120%, #ec489922, transparent 60%);
+  background: radial-gradient(1200px 700px at 15% -10%, #ffd6a522, transparent 60%),
+    radial-gradient(1100px 600px at 110% 10%, #c8b6ff22, transparent 60%),
+    radial-gradient(1000px 600px at 50% 120%, #a0e7e522, transparent 60%);
 }
 
 .aurora-bg::before,
 .aurora-bg::after {
   content: "";
   position: absolute;
-  width: 45vmax;
-  height: 45vmax;
+  width: 50vmax;
+  height: 50vmax;
   border-radius: 9999px;
-  filter: blur(80px);
-  opacity: 0.35;
-  animation: float-orb 18s ease-in-out infinite alternate;
+  filter: blur(90px);
+  opacity: 0.3;
+  animation: float-orb 32s ease-in-out infinite alternate;
 }
 
 .aurora-bg::before {
-  top: -10%;
-  left: -10%;
-  background: linear-gradient(135deg, #7c3aed, #06b6d4);
+  top: -12%;
+  left: -12%;
+  background: linear-gradient(135deg, #ffb37b, #ffe08a);
 }
 
 .aurora-bg::after {
-  bottom: -15%;
-  right: -10%;
-  background: linear-gradient(135deg, #ec4899, #f59e0b);
-  animation-delay: 4s;
+  bottom: -18%;
+  right: -12%;
+  background: linear-gradient(135deg, #c8b6ff, #a0e7e5);
+  animation-delay: 6s;
 }
 
 @keyframes float-orb {
@@ -66,16 +71,82 @@ body {
     transform: translate(0, 0) scale(1);
   }
   50% {
-    transform: translate(6vw, 4vh) scale(1.15);
+    transform: translate(5vw, 3vh) scale(1.1);
   }
   100% {
-    transform: translate(-4vw, -6vh) scale(0.95);
+    transform: translate(-4vw, -5vh) scale(0.95);
+  }
+}
+
+/* A single soft, breathing glow used behind focal elements (icons, mic
+ * button) to suggest calm rather than urgency — slow, gentle, rhythmic. */
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.85;
+  }
+}
+.breathe {
+  animation: breathe 4.5s ease-in-out infinite;
+}
+
+/* Warm, tactile "paper" surface for the journal card — a faint grain plus a
+ * soft cream tone so entries feel like they're written on real paper. */
+.paper-card {
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.012) 0px,
+      rgba(0, 0, 0, 0.012) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    linear-gradient(180deg, #fffdf9, #fbf3e8);
+}
+@media (prefers-color-scheme: dark) {
+  .paper-card {
+    background:
+      repeating-linear-gradient(
+        0deg,
+        rgba(255, 255, 255, 0.015) 0px,
+        rgba(255, 255, 255, 0.015) 1px,
+        transparent 1px,
+        transparent 3px
+      ),
+      linear-gradient(180deg, #211c25, #1a1620);
+  }
+}
+
+.font-journal {
+  font-family: var(--font-serif-journal), Georgia, "Times New Roman", serif;
+}
+
+@keyframes drift-up {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: var(--particle-opacity, 0.5);
+  }
+  90% {
+    opacity: var(--particle-opacity, 0.5);
+  }
+  100% {
+    transform: translateY(-70vh) translateX(var(--particle-drift, 20px));
+    opacity: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .aurora-bg::before,
-  .aurora-bg::after {
+  .aurora-bg::after,
+  .breathe {
     animation: none;
   }
 }
