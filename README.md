@@ -7,7 +7,14 @@ production-grade submission for the Google Gen AI APAC ideathon.
 **Live:** https://gemini-journal-1040501010782.asia-south1.run.app
 **GCP project:** `gen-ai-academy-491119` (`asia-south1`)
 
-## Requirements → implementation
+## Phase 1 — AI Studio "constitution"
+
+[`docs/ai-studio-system-instructions.md`](docs/ai-studio-system-instructions.md): the full
+custom system instructions used in Google AI Studio before any code was generated —
+threat modeling, auth/authz rules, data isolation, and secret management standards that
+every part of Phase 2/3 below was built against.
+
+## Phase 2 — Personal Gemini Journal
 
 | Requirement | Implementation |
 |---|---|
@@ -15,9 +22,8 @@ production-grade submission for the Google Gen AI APAC ideathon.
 | Multi-turn AI | `gemini-3.5-flash-lite` via `@google/genai`, called server-side only |
 | Isolated storage | Cloud Firestore at `users/{uid}/entries/{id}`, enforced by security rules + server-side uid checks |
 | Secret management | Gemini key lives only in Secret Manager, fetched by a least-privilege Cloud Run service account |
-| Enhancement | **Voice Journal** (continuous Web Speech API input) + a **calendar view** of past entries |
 
-## Architecture
+### Architecture
 
 ```mermaid
 flowchart LR
@@ -43,6 +49,15 @@ flowchart LR
 - **Stateless & containerized**: multi-stage Dockerfile, non-root user, Next.js
   `standalone` output, deployed to Cloud Run with autoscaling.
 
+## Phase 3 — Original feature enhancements
+
+- **Voice Journal**: continuous browser Web Speech API input (keeps listening until you
+  tap stop, not just after the first pause) — journal out loud, transcript flows into the
+  same authenticated Gemini pipeline as typed entries, zero extra infra cost.
+- **Calendar journal history**: saved entries get a Gemini-generated title and are shown
+  on a month calendar — days with entries are marked, clicking a date lists that day's
+  entries, and clicking one reopens the full saved conversation read-only.
+
 ## Resilience
 
 A past cohort was missed when a GCP billing account was silently disabled. This build
@@ -53,12 +68,6 @@ treats that as a first-class risk:
   is caught immediately, not silently.
 - Gemini key lives in a project with **no billing account attached**, so it uses the
   standard free tier instead of a paid "prepay" wallet that can silently deplete.
-
-## Phase 1 — AI Studio "constitution"
-
-[`docs/ai-studio-system-instructions.md`](docs/ai-studio-system-instructions.md): the full
-custom system instructions used in Google AI Studio before any code was generated —
-threat modeling, auth/authz rules, data isolation, and secret management standards.
 
 ## One manual step remaining
 
