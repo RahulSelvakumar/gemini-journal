@@ -26,6 +26,8 @@ every part of Phase 2/3 below was built against.
 
 ### Architecture
 
+![Architecture diagram](docs/architecture-diagram.png)
+
 ```mermaid
 flowchart LR
     U["Browser<br/>Next.js client"] -- "Firebase ID token" --> CR
