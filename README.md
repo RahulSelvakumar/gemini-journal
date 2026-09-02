@@ -26,19 +26,8 @@ every part of Phase 2/3 below was built against.
 
 ### Architecture
 
-![Architecture diagram](docs/architecture-diagram.png)
+<img width="1024" height="642" alt="9162c9e4-7681-4d85-81f5-5dfae9ee12f5" src="https://github.com/user-attachments/assets/4816d91f-d329-4230-8fc8-c889263e8b1b" />
 
-```mermaid
-flowchart LR
-    U["Browser<br/>Next.js client"] -- "Firebase ID token" --> CR
-    subgraph CR["Cloud Run (stateless, autoscale 0→3)"]
-        A["API routes<br/>verify token · rate limit"]
-    end
-    CR -- "server-side only" --> G["Gemini API<br/>gemini-3.5-flash-lite"]
-    CR --> F[("Firestore<br/>users/{uid}/entries")]
-    CR -. "fetch key at boot" .-> SM[("Secret Manager<br/>gemini-api-key")]
-    CM["Cloud Monitoring<br/>uptime + budget alerts"] -.-> CR
-```
 
 - **Auth boundary**: every `/api/*` route verifies the Firebase ID token via
   `firebase-admin` (`requireUserId`) — invalid/missing token → `401`. No route ever trusts
