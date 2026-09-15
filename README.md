@@ -5,9 +5,6 @@ A calm, authenticated journaling app: sign in, brainstorm or write with Gemini, 
 conversation is auto-summarized and saved to your own private history. Built as a
 production-grade submission for the Google Gen AI APAC ideathon.
 
-**Live:** https://gemini-journal-1040501010782.asia-south1.run.app
-**GCP project:** `gen-ai-academy-491119` (`asia-south1`)
-
 ## Phase 1 — AI Studio "constitution"
 
 [`docs/ai-studio-system-instructions.md`](docs/ai-studio-system-instructions.md): the full
